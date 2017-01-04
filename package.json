@@ -1,0 +1,16 @@
+{
+  "name": "hotsongs",
+  "version": "1.0.0",
+  "description": "Youtube Hot Songs",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jim Lee",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.14.0",
+    "googleapis": "^16.0.0",
+    "node-webcrawler": "^0.8.0"
+  }
+}
