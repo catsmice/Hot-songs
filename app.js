@@ -4,6 +4,7 @@ var util = require('util');
 var url = require('url');
 var http = require('http');
 var express = require('express');
+var dateFormat = require('dateformat');
 
 var crawledSong = []; 
 //var matchedVideoId = [];
@@ -11,6 +12,8 @@ var crawledSong = [];
 
 var song = [];
 var totalSong = 0;
+var youtube;
+var webOutput;
 
 class Song
 {
@@ -35,7 +38,7 @@ var queryYoutubeDone = function (error, query_string, data) {
     
     song[totalSong] = new Song(query_string, '', '');
     song[totalSong].setSong = query_string;
-    song[totalSong].video_numer = data.items.length;
+    song[totalSong].video_number = data.items.length;
 
     for (i = 0; i < data.items.length; i++) {
         item = data.items[i];
@@ -43,11 +46,15 @@ var queryYoutubeDone = function (error, query_string, data) {
         song[totalSong].video_id[i] = item.id.videoId;
         song[totalSong].video_title[i] = item.snippet.title;
         
-        console.log("[ "+i+" video ID]: " + song[totalSong].video_id[i]);
-        console.log("[ "+i+" video title: " + song[totalSong].video_title[i]);
+        //console.log("[ "+i+" video ID]: " + song[totalSong].video_id[i]);
+        //console.log("[ "+i+" video title: " + song[totalSong].video_title[i]);
     }
 
     totalSong ++;
+
+    if (totalSong == 10) {
+        BuildResponse();
+    }
     //console.log("-- Query Youtube done");
 };
 
@@ -89,17 +96,29 @@ var crawlWebDone = function (error, res, done) {
               crawledSong[i] = $("h2.title").eq(i).text();
               //console.log(matchedSong[i]);
 
-              //queryYoutube(false, matchedSong[i], queryYoutubeDone);
+              queryYoutube(false, crawledSong[i], queryYoutubeDone);
             }
         }
 };
 
 var BuildResponse = function() {
-    var outputString = '';
+    var outputString = "";
 
-    outputString = '<BR>';
+    for (i = 0; i < totalSong; i++) {
+        outputString += song[i].song_name + "<br>\n";
 
-    console.log('output:' + outputString);
+        outputString += "<table border=1>\n";
+        for (ii = 0; ii < song[i].video_number; ii ++) {
+            outputString += "<tr>\n";
+            outputString += "<td>" + song[i].video_title[ii] + "</td>\n";
+            outputString += "<td><a href=\"https://www.youtube.com/watch?v=" + song[i].video_id[ii] + "\" target=\"_blank\">" + "Youtube link" + "</a></td>\n";
+            outputString += "</tr>\n";
+        }
+        outputString += "</table></br>\n";
+    }
+
+    //console.log('output:' + outputString);
+    webOutput.send(outputString);
 }
 
 var app = express();
@@ -111,6 +130,9 @@ app.get('/', function(req,res) {
 app.post('/go', function(req,res) {
     //res.send('<form action=\"/go\"><button>Start</button></form>');
     //res.send('hihi');
+
+    webOutput = res;
+
     var c = new crawler ({
         maxConnections : 1,
         callback : crawlWebDone
@@ -121,23 +143,34 @@ app.post('/go', function(req,res) {
         auth: 'AIzaSyCqd9zyDgj9kj_byB7jcYXyYFEnfxZJb3Q'
     });
 
-    //c.queue('http://www.oricon.co.jp/rank/js/d/2016-12-27/');
 
+    var today = new Date();
+    var fourdaysago = new Date();
+    fourdaysago.setDate(today.getDate()-4);
+
+    var day = dateFormat(fourdaysago,"yyyy-mm-dd");
+    console.log("http://www.oricon.co.jp/rank/js/d/"+day+"/");
+    c.queue("http://www.oricon.co.jp/rank/js/d/"+day+"/");
+    
+    //c.queue('http://www.oricon.co.jp/rank/js/d/2017-01-03/');
+
+    //http://www.oricon.co.jp/rank/js/d/2017-01-03/
+    //http://www.oricon.co.jp/rank/js/d/2016-12-27/
+    /*
     crawledSong = ['僕以外の誰か', '素晴らしきSekai', '不滅のインフェルノ', '二人セゾン', 'God’s S.T.A.R.', '世界に一つだけの花(シングル・ヴァージョン)', '恋', 'Winter Wonderland', '無敵*デンジャラス', 'Give Me Love'];
 
     for (i = 0; i < 10; i++) {
         queryYoutube(false, crawledSong[i], queryYoutubeDone);
     }
+    */
 });
 
+
+
+/*
 var youtube = google.youtube({
   version: 'v3',
   auth: 'AIzaSyCqd9zyDgj9kj_byB7jcYXyYFEnfxZJb3Q'
-});
-
-/*
-app.listen(3000, function(){
-    console.log('HTTP running');
 });
 */
 
@@ -146,22 +179,23 @@ var c = new crawler ({
     callback : crawlWebDone
 });
 
-var youtube = google.youtube({
+youtube = google.youtube({
   version: 'v3',
   auth: 'AIzaSyCqd9zyDgj9kj_byB7jcYXyYFEnfxZJb3Q'
 });
 
-//c.queue('http://www.oricon.co.jp/rank/js/d/2016-12-27/');
 
+app.listen(3000, function(){
+    console.log('HTTP running');
+});
+
+//c.queue('http://www.oricon.co.jp/rank/js/d/2016-12-27/');
+/*
 crawledSong = ['僕以外の誰か', '素晴らしきSekai', '不滅のインフェルノ', '二人セゾン', 'God’s S.T.A.R.', '世界に一つだけの花(シングル・ヴァージョン)', '恋', 'Winter Wonderland', '無敵*デンジャラス', 'Give Me Love'];
 
 for (i = 0; i < 10; i++) {
     queryYoutube(false, crawledSong[i], queryYoutubeDone);
-    console.log("totalSong: "+totalSong);
-    if (totalSong == 10) {
-        BuildResponse();
-    }
 }
-
+*/
 
 
