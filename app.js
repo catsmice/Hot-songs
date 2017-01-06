@@ -4,7 +4,6 @@ var util = require('util');
 var url = require('url');
 var http = require('http');
 var express = require('express');
-var async = require('async');
 
 var crawledSong = []; 
 //var matchedVideoId = [];

@@ -9,7 +9,6 @@
   "author": "Jim Lee",
   "license": "ISC",
   "dependencies": {
-    "async": "^2.1.4",
     "express": "^4.14.0",
     "googleapis": "^16.0.0",
     "node-webcrawler": "^0.8.0"
