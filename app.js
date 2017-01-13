@@ -128,6 +128,12 @@ app.get('/', function(req,res) {
 
 });
 
+app.get('/go', function(req,res) {
+    totalSong ++;
+    console.log("totalSong:"+totalSong+" session:"+req.sessionID);
+    res.sendStatus(200);
+});
+
 app.post('/go', function(req,res) {
     //res.send('<form action=\"/go\"><button>Start</button></form>');
     //res.send('hihi');
@@ -152,7 +158,9 @@ app.post('/go', function(req,res) {
     var day = dateFormat(fourdaysago,"yyyy-mm-dd");
     console.log("http://www.oricon.co.jp/rank/js/d/"+day+"/");
     c.queue("http://www.oricon.co.jp/rank/js/d/"+day+"/");
-    
+ 
+
+
     //c.queue('http://www.oricon.co.jp/rank/js/d/2017-01-03/');
 
     //http://www.oricon.co.jp/rank/js/d/2017-01-03/
