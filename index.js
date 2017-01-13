@@ -1,7 +1,6 @@
 //var wtf = require('wtfnode');
-var pg = require('pg').native;
-//var client;// = new pg.Client();
-var working_client;
+var pg = require('pg');
+var run_count = 0;
 
 var config = {
     user: 'jimlee',
@@ -13,9 +12,7 @@ var config = {
     //ssl: true
 };
 
-var pool = new pg.Pool(config);
-//client = new pg.Client(config);
-
+/*
 function db_query_done(err, result) {
     //call `done()` to release the client back to the pool
     console.log("query_done");
@@ -38,17 +35,31 @@ function db_query_done(err, result) {
     //wtf.dump();
     //output: 1
 }
+*/
 
 function db_connected(err, client, done) {
-//function db_connected(err) {
     if(err) {
         return console.log('error fetching client from pool'+err);
     }
 
     console.log("connected");
-    working_client = client;
+    //working_client = client;
     
-    client.query('select * from song;', db_query_done);
+    client.query('select * from song;', function (err, result) {
+        done();
+
+        console.log("query_done");
+        if(err) {
+            return console.log('error running query');
+        }
+
+        console.log(result.rows[0].youtube_title);
+        run_count ++;
+
+        if (run_count == 10)
+            pool.end();
+        //wtf.dump();
+    });
 }
 
 function pool_error(err, client) {
@@ -61,9 +72,11 @@ function pool_error(err, client) {
   console.error('idle client error', err.message, err.stack)
 }
 
-//for (i = 0; i < 10; i ++) {
+var pool = new pg.Pool(config);
+
+for (i = 0; i < 10; i ++) {
     //console.log('start new query: '+i);
     //client.connect(db_connected);
     pool.connect(db_connected);
-//}
+}
 pool.on('error', pool_error);
