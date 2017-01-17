@@ -5,6 +5,7 @@ var util = require('util');
 var url = require('url');
 var http = require('http');
 var dateFormat = require('dateformat');
+var cronjob = require('cron').CronJob;
 
 var run_count = 0;
 var youtube;
@@ -12,7 +13,7 @@ var pool;
 
 var config = {
     user: 'jimlee',
-    database: 'jimlee',
+    database: 'hotsong_db',
     host: 'localhost',
     port: 5432,
     max: 5,
@@ -60,13 +61,13 @@ function crawlWebDone(error, res, done) {
             for (i = 0; i < 10; i++) {
               //console.log($("h2.title").eq(i).text());
               crawledSong[i] = $("h2.title").eq(i).text();
-              queryYoutube(false, crawledSong[i], queryYoutubeDone);
+              queryYoutube(false, i, crawledSong[i], queryYoutubeDone);
               //run_count ++;
             }
         }
 };
 
-function queryYoutube(error, query_string, callback) {
+function queryYoutube(error, rank, query_string, callback) {
     //console.log("-- Query Youtube start");
     youtube.search.list( {
         part: 'id,snippet',
@@ -79,23 +80,25 @@ function queryYoutube(error, query_string, callback) {
         }
         if (data) {
             //console.log("[query_string] "+query_string);
-            callback(false, query_string, data)
+            callback(false, rank, query_string, data)
             //console.log(util.inspect(data, false, null));
         }
     });
 };
 
-function queryYoutubeDone(error, query_string, data) {
+function queryYoutubeDone(error, rank, query_string, data) {
     var item;
     var song_name = query_string;
     
     item = data.items[0];
     var song_video_id = item.id.videoId;
     var song_video_title = item.snippet.title;
+    var song_video_thumbnail = item.snippet.thumbnails.medium.url;
 
     console.log("(queryDone) song_name: " + song_name);
     console.log("(queryDone) video_id: " + song_video_id);
     console.log("(queryDone) video_title: " + song_video_title); 
+    console.log("(queryDone) thumbnail_url: " + song_video_thumbnail); 
 
     pool.connect(function(err, client, done) {
         if(err) {
@@ -104,26 +107,54 @@ function queryYoutubeDone(error, query_string, data) {
 
         //console.log("connected");
         
-        client.query('select * from song;', function (err, result) {
-            done();
+        //client.query('select * from song;', function (err, result) {
+        
+        client.query('insert into song(song_name, youtube_title, youtube_video_id, youtube_thumbnail_url, genres, create_date, play_count) values($1,$2,$3,$4,$5,$6,$7)',[song_name, song_video_title, song_video_id, song_video_thumbnail, '', new Date(), 0], function (err, result) {
 
-            //console.log("query_done");
             if(err) {
-                return console.log('error running query');
+                done();
+                return console.log('error insert song database');
             }
 
-            //console.log(result.rows[0].youtube_title);
-            run_count ++;
+            var today = new Date();
+            var fourdaysago = new Date();
+            fourdaysago.setDate(today.getDate()-4);
+            var day = dateFormat(fourdaysago,"yyyy-mm-dd");
+
+            /*
+            insert into oricon(song, rank) 
+            select song.id, 3 
+            from song
+            where song.song_name='恋';
+            */
+
+            client.query('insert into oricon(song, rank, date) select song.id,$1,$2 from song where song.song_name=$3', [rank, day, song_name], function (err, result) {
+
+                if(err) {
+                    done();
+                    return console.log('error insert oricon database');
+                }
+
+                done();
+                run_count ++;
+                //console.log('data insert count: '+run_count);
+
+                // temporily solution for worker
+                if (run_count == 10) {
+                    run_count = 0;
+                    pool.end();
+                }
+            });
+
+
+
+
+
         });
     });
     
-    console.log('data insert count: '+run_count);
 
-    // temporily solution for worker
-    if (run_count == 9) {
-        pool.end();
-        run_count = 0;
-    }
+
 
     //if (totalSong == 1) {
     //    BuildResponse();
@@ -162,3 +193,9 @@ var pool = new pg.Pool(config);
 pool.on('error', pool_error);
 
 startCrawler();
+/*
+new cronjob('30 * * * * *', function() {
+  console.log('You will see this message every second');
+}, null, true, 'America/Los_Angeles');
+*/
+
