@@ -6,6 +6,7 @@ var url = require('url');
 var http = require('http');
 var dateFormat = require('dateformat');
 var cronjob = require('cron').CronJob;
+var request = require('request');
 
 var run_count = 0;
 var youtube;
@@ -72,7 +73,7 @@ function queryYoutube(error, rank, query_string, callback) {
     youtube.search.list( {
         part: 'id,snippet',
         //q: 'Node.js on Google Cloud'
-        order: 'viewCount',
+        order: 'relevance',
         q: query_string
     }, function(err, data) {
         if (err) {
@@ -189,10 +190,64 @@ function BuildResponse() {
     */
 };
 
-var pool = new pg.Pool(config);
-pool.on('error', pool_error);
 
-startCrawler();
+
+function startRecommendation() {
+    var formData = {
+        method : 'track.getSimilar',
+        track : 'モノクロ',
+        artist : 'flower',
+        api_key : '47f084f555d8b2cb9a62d406332d7f55'
+    };
+
+    //console.log(JSON.stringify(formData:formData));
+    
+    /*
+    http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&track=So Beautiful&artist=May J&api_key=47f084f555d8b2cb9a62d406332d7f55
+    */
+
+    request.get({url:'http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&track=So Beautiful&artist=May J.&api_key=47f084f555d8b2cb9a62d406332d7f55'}, function optionalCallback(err, httpResponse, body) {
+        if (err) {
+            return console.error('get failed:', err);
+        }
+        
+        console.log('get successful!  Server responded with:', body);
+    });
+      
+}
+
+startRecommendation();
+
+//var pool = new pg.Pool(config);
+//pool.on('error', pool_error);
+//startCrawler();
+
+/*
+pool.connect(function(err, client, done) {
+        if(err) {
+            return console.log('error fetching client from pool'+err);
+        }
+
+        console.log("connected");
+        
+        //client.query('select * from song;', function (err, result) {
+        client
+            .query('select song_name, youtube_title, youtube_video_id, youtube_thumbnail_url from song order by random() limit 1')
+            .on('row', function (row) {
+                console.log("select: "+JSON.stringify(row));
+               
+                //var result = JSON.parse(row);
+                console.log("song_name: "+ row.song_name);
+                console.log("title: "+ row.youtube_title);
+                console.log("video_id: "+ row.youtube_video_id);
+                console.log("url: "+ row.youtube_thumbnail_url);
+
+
+
+            });
+        });
+*/
+
 /*
 new cronjob('30 * * * * *', function() {
   console.log('You will see this message every second');
