@@ -74,7 +74,7 @@ function queryYoutube(error, rank, query_string, callback) {
         part: 'id,snippet',
         //q: 'Node.js on Google Cloud'
         order: 'relevance',
-        q: query_string
+        q: query_string + ' -MAD',
     }, function(err, data) {
         if (err) {
             console.error('Error: ' + err);
@@ -206,12 +206,24 @@ function startRecommendation() {
     http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&track=So Beautiful&artist=May J&api_key=47f084f555d8b2cb9a62d406332d7f55
     */
 
-    request.get({url:'http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&track=So Beautiful&artist=May J.&api_key=47f084f555d8b2cb9a62d406332d7f55'}, function optionalCallback(err, httpResponse, body) {
+    request.get({url:'http://ws.audioscrobbler.com/2.0/?method=track.getSimilar&track=So Beautiful&artist=May J.&api_key=47f084f555d8b2cb9a62d406332d7f55&format=json'}, function optionalCallback(err, httpResponse, body) {
         if (err) {
             return console.error('get failed:', err);
         }
         
-        console.log('get successful!  Server responded with:', body);
+        var response = JSON.parse(body);
+        //var image = [];
+        //console.log(JSON.stringify(response.similartracks.track[0].image[3].nodeType, null, 4));
+        //console.log(response.similartracks.track[0].image[3]['#text']);
+        
+        for (i = 0; i < response.similartracks.track.length; i ++) {
+            console.log('id: ' + i + ' track: ' + response.similartracks.track[i].name);
+            console.log('id: ' + i + ' artist: ' + response.similartracks.track[i].artist.name);
+            //image = response.similartracks.track[i].artist.image;
+            //console.log('id: ' + i + ' size: ' + response.similartracks.track[0].image[3].size);
+            //console.log('id: ' + i + ' url: ' + response.similartracks.track[0].image[3]['#text']);
+        }
+        
     });
       
 }
@@ -228,22 +240,31 @@ pool.connect(function(err, client, done) {
             return console.log('error fetching client from pool'+err);
         }
 
-        console.log("connected");
-        
+        //console.log("connected");
+        var rows = [];
+
         //client.query('select * from song;', function (err, result) {
         client
-            .query('select song_name, youtube_title, youtube_video_id, youtube_thumbnail_url from song order by random() limit 1')
+            .query('select song_name, youtube_title, youtube_video_id, youtube_thumbnail_url from song order by random() limit 3')
             .on('row', function (row) {
-                console.log("select: "+JSON.stringify(row));
+                //console.log("select: "+JSON.stringify(row));
                
+                rows.push(row);
                 //var result = JSON.parse(row);
-                console.log("song_name: "+ row.song_name);
-                console.log("title: "+ row.youtube_title);
-                console.log("video_id: "+ row.youtube_video_id);
-                console.log("url: "+ row.youtube_thumbnail_url);
+                //console.log("song_name: "+ row.song_name);
+                //console.log("title: "+ row.youtube_title);
+                //console.log("video_id: "+ row.youtube_video_id);
+                //console.log("url: "+ row.youtube_thumbnail_url);
+            })
+            .on('end', function (res) {
+                console.log("row count: "+res.rowCount);
 
-
-
+                for (i = 0; i < res.rowCount; i ++) {
+                console.log("song_name: "+ rows[i].song_name);
+                console.log("title: "+ rows[i].youtube_title);
+                console.log("video_id: "+ rows[i].youtube_video_id);
+                console.log("url: "+ rows[i].youtube_thumbnail_url);
+                }
             });
         });
 */
