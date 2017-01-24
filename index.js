@@ -8,6 +8,9 @@ var dateFormat = require('dateformat');
 var cronjob = require('cron').CronJob;
 var request = require('request');
 
+var previous_day_to_crawl = process.argv[2] || 4;
+var billboard_en_limit = 30;
+var run_count_limit = billboard_en_limit + 10;
 var run_count = 0;
 var youtube;
 var pool;
@@ -33,61 +36,94 @@ function pool_error(err, client) {
 }
 
 function startCrawler() {
-    var c = new crawler({
+    // crawler #1
+    
+    var c1 = new crawler({
         maxConnections : 1,
-        callback : crawlWebDone
-    });
-
-    youtube = google.youtube({
-        version: 'v3',
-        auth: 'AIzaSyCqd9zyDgj9kj_byB7jcYXyYFEnfxZJb3Q'
+        callback : crawl_1_Done
     });
 
     var today = new Date();
     var fourdaysago = new Date();
-    fourdaysago.setDate(today.getDate()-4);
+    fourdaysago.setDate(today.getDate()-previous_day_to_crawl);
 
     var day = dateFormat(fourdaysago,"yyyy-mm-dd");
     console.log("Crawler URL: http://www.oricon.co.jp/rank/js/d/"+day+"/");
-    c.queue("http://www.oricon.co.jp/rank/js/d/"+day+"/");
+    c1.queue("http://www.oricon.co.jp/rank/js/d/"+day+"/");
+    
+    // crawler #2
+    var c2 = new crawler({
+        maxConnections : 1,
+        callback : crawl_2_Done
+    });
+
+    c2.queue("http://www.billboard.com/charts/hot-100");
 };
 
-function crawlWebDone(error, res, done) {    
+function crawl_1_Done(error, res, done) {    
     if (error) {
             console.log(error);
         } else {
             var $ = res.$;
-            var crawledSong = [];
+            var crawledSong;
+            var crawledArtist;
+            //var crawledSong = [];
 
             for (i = 0; i < 10; i++) {
               //console.log($("h2.title").eq(i).text());
-              crawledSong[i] = $("h2.title").eq(i).text();
-              queryYoutube(false, i, crawledSong[i], queryYoutubeDone);
+              //crawledSong[i] = $("h2.title").eq(i).text();
+              crawledSong = $("h2.title").eq(i).text();              
+              crawledArtist = $("p.name").eq(i).text();
+              //console.log("o-song:"+i+":"+crawledSong);
+              //console.log("o-artist:"+i+":"+crawledArtist);
+
+              queryYoutube(false, i, crawledSong, crawledArtist, 'oricon-jp', queryYoutubeDone);
+              
+              
               //run_count ++;
             }
         }
 };
 
-function queryYoutube(error, rank, query_string, callback) {
+function crawl_2_Done(error, res, done) {
+    if (error) {
+            console.log(error);
+    } else {
+            var $ = res.$;
+            var crawledSong;
+            var crawledArtist;
+
+            for (i = 0; i < billboard_en_limit; i ++) {
+                crawledSong = $("h2.chart-row__song").eq(i).text();              
+                //console.log("b-song:"+i+":"+crawledSong);
+                crawledArtist = $("a.chart-row__artist").eq(i).text().trim();
+                //console.log("b-artist:"+i+":"+crawledArtist);
+
+                queryYoutube(false, i, crawledSong, crawledArtist, 'billboard-en', queryYoutubeDone);
+            }
+    }
+};
+
+function queryYoutube(error, rank, query_song, query_artist, source, callback) {
     //console.log("-- Query Youtube start");
     youtube.search.list( {
         part: 'id,snippet',
         //q: 'Node.js on Google Cloud'
         order: 'relevance',
-        q: query_string + ' -MAD',
+        q: query_song + ' ' + query_artist + ' -MAD',
     }, function(err, data) {
         if (err) {
             console.error('Error: ' + err);
         }
         if (data) {
             //console.log("[query_string] "+query_string);
-            callback(false, rank, query_string, data)
+            callback(false, rank, query_song, source, data)
             //console.log(util.inspect(data, false, null));
         }
     });
 };
 
-function queryYoutubeDone(error, rank, query_string, data) {
+function queryYoutubeDone(error, rank, query_string, source, data) {
     var item;
     var song_name = query_string;
     
@@ -96,10 +132,10 @@ function queryYoutubeDone(error, rank, query_string, data) {
     var song_video_title = item.snippet.title;
     var song_video_thumbnail = item.snippet.thumbnails.medium.url;
 
-    console.log("(queryDone) song_name: " + song_name);
-    console.log("(queryDone) video_id: " + song_video_id);
-    console.log("(queryDone) video_title: " + song_video_title); 
-    console.log("(queryDone) thumbnail_url: " + song_video_thumbnail); 
+    console.log("(Youtube query done) song_name: " + song_name + " [source] " + source);
+    //console.log("(queryDone) video_id: " + song_video_id);
+    //console.log("(queryDone) video_title: " + song_video_title); 
+    //console.log("(queryDone) thumbnail_url: " + song_video_thumbnail); 
 
     pool.connect(function(err, client, done) {
         if(err) {
@@ -110,24 +146,40 @@ function queryYoutubeDone(error, rank, query_string, data) {
         
         //client.query('select * from song;', function (err, result) {
         
-        client.query('insert into song(song_name, youtube_title, youtube_video_id, youtube_thumbnail_url, genres, create_date, play_count) values($1,$2,$3,$4,$5,$6,$7)',[song_name, song_video_title, song_video_id, song_video_thumbnail, '', new Date(), 0], function (err, result) {
+        client.query('insert into song(song_name, youtube_title, youtube_video_id, youtube_thumbnail_url, genres, create_date, play_count, source) values($1,$2,$3,$4,$5,$6,$7,$8)',[song_name, song_video_title, song_video_id, song_video_thumbnail, '', new Date(), 0, source], function (err, result) {
 
             if(err) {
                 done();
-                return console.log('error insert song database');
+                run_count ++;
+                if (run_count == run_count_limit) {
+                    run_count = 0;
+                    pool.end();
+                }
+                
+                return console.log('error ' + err + ' when insert song database ' + song_name + ',' + song_video_title);
             }
 
+            done();
+            run_count ++;
+            //console.log('data insert count: '+run_count);
+
+            // temporily solution for worker
+            if (run_count == run_count_limit) {
+                run_count = 0;
+                pool.end();
+            }
+            /*
             var today = new Date();
             var fourdaysago = new Date();
-            fourdaysago.setDate(today.getDate()-4);
+            fourdaysago.setDate(today.getDate()-previous_day_to_crawl);
             var day = dateFormat(fourdaysago,"yyyy-mm-dd");
 
-            /*
+            
             insert into oricon(song, rank) 
             select song.id, 3 
             from song
             where song.song_name='恋';
-            */
+            
 
             client.query('insert into oricon(song, rank, date) select song.id,$1,$2 from song where song.song_name=$3', [rank, day, song_name], function (err, result) {
 
@@ -146,11 +198,7 @@ function queryYoutubeDone(error, rank, query_string, data) {
                     pool.end();
                 }
             });
-
-
-
-
-
+            */
         });
     });
     
@@ -228,12 +276,17 @@ function startRecommendation() {
       
 }
 
-startRecommendation();
+//startRecommendation();
+youtube = google.youtube({
+      version: 'v3',
+      auth: 'AIzaSyCqd9zyDgj9kj_byB7jcYXyYFEnfxZJb3Q'
+});
 
-//var pool = new pg.Pool(config);
-//pool.on('error', pool_error);
-//startCrawler();
+var pool = new pg.Pool(config);
+pool.on('error', pool_error);
+startCrawler();
 
+//console.log("previous_day_to_crawl:"+previous_day_to_crawl);
 /*
 pool.connect(function(err, client, done) {
         if(err) {
